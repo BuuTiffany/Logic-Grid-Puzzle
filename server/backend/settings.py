@@ -38,12 +38,12 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
-    'corsheaders', # For CORS, explicitly allows svelte to interact with django
+    'corsheaders', # Add CORS to packages
     'api',
 ]
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware', # For CORS
+    'corsheaders.middleware.CorsMiddleware', # Run CORS first so other middleware doesn't reject requests before cors
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -53,9 +53,10 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-# For svelte dev server
+# Which addresses are allowed to interact with the api
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
+    "http://127.0.0.1:5173", # Since svelte uses vite, it defaults to this format
+    "http://localhost:5173", # Equivalent url
 ]
 
 ROOT_URLCONF = 'backend.urls'

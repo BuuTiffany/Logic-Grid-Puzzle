@@ -1,2 +1,14 @@
-<h1>Welcome to SvelteKit</h1>
-<p>Visit <a href="https://svelte.dev/docs/kit">svelte.dev/docs/kit</a> to read the documentation</p>
+<script>
+  import { PUBLIC_API_BASE } from '$env/static/public';
+  import { onMount } from 'svelte';
+
+  let message = '';
+
+  onMount(async () => {
+    const res = await fetch(`${PUBLIC_API_BASE}/api/hello/`);
+    const data = await res.json();
+    message = data.message;
+  });
+</script>
+
+<p>{message}</p>
