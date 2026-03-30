@@ -3,4 +3,5 @@ from . import views
 
 urlpatterns = [
     path('hello/', views.hello), # Wires to /backend/urls
+    path('leaderboard/', views.leaderboard),
 ]
