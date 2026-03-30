@@ -20,6 +20,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
+'''
+Production, var in Elastic Beanstalk Dash
+from decouple import config
+SECRET_KEY = config('SECRET_KEY')
+'''
 SECRET_KEY = 'django-insecure---w=nglydhvdxv(z_i&-=-w2%yk16_sf4d=^^olpo*0c79+fp&'
 
 # SECURITY WARNING: don't run with debug turned on in production!
@@ -57,6 +62,12 @@ MIDDLEWARE = [
 CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5173", # Since svelte uses vite, it defaults to this format
     "http://localhost:5173", # Equivalent url
+]
+
+ALLOWED_HOSTS = [
+    'Logic-grid-puzzle-env.eba-3whctxmn.us-east-2.elasticbeanstalk.com',
+    'localhost',
+    '127.0.0.1',
 ]
 
 ROOT_URLCONF = 'backend.urls'
