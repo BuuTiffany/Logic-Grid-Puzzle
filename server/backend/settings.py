@@ -61,7 +61,9 @@ MIDDLEWARE = [
 # Which addresses are allowed to interact with the api
 CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5173", # Since svelte uses vite, it defaults to this format
+    "http://127.0.0.1:5174", # When port 5173 is in use, Vite tries next port
     "http://localhost:5173", # Equivalent url
+    "http://localhost:5174", # Equivalent url for next port
 ]
 
 ALLOWED_HOSTS = [
