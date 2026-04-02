@@ -20,18 +20,17 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-'''
-Production, var in Elastic Beanstalk Dash
 from decouple import config
 SECRET_KEY = config('SECRET_KEY')
-'''
-SECRET_KEY = 'django-insecure---w=nglydhvdxv(z_i&-=-w2%yk16_sf4d=^^olpo*0c79+fp&'
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
-
+ALLOWED_HOSTS = [
+    'Logic-grid-puzzle-env.eba-3whctxmn.us-east-2.elasticbeanstalk.com',
+    'localhost',
+    '127.0.0.1',
+]
 
 # Application definition
 
@@ -64,11 +63,10 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173", # Equivalent url
 ]
 
-ALLOWED_HOSTS = [
-    'Logic-grid-puzzle-env.eba-3whctxmn.us-east-2.elasticbeanstalk.com',
-    'localhost',
-    '127.0.0.1',
-]
+# Static files (CSS, JavaScript, Images)
+# https://docs.djangoproject.com/en/2.2/howto/static-files/
+STATIC_URL = '/static/'
+STATIC_ROOT = 'static'
 
 ROOT_URLCONF = 'backend.urls'
 
@@ -104,12 +102,25 @@ WSGI_APPLICATION = 'backend.wsgi.application'
         'HOST':     config('DB_HOST'),
         'PORT':     config('DB_PORT', default='5432'),
 '''
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+# Fall back on sqlite3 if RDS is not setup in AWS
+if config('DB_HOST', default=None):
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME':     config('DB_NAME'),
+            'USER':     config('DB_USER'),
+            'PASSWORD': config('DB_PASSWORD'),
+            'HOST':     config('DB_HOST'),
+            'PORT':     config('DB_PORT', default='5432'),
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 
 # Password validation
