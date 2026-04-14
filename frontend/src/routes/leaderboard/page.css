@@ -1,0 +1,56 @@
+    .leaderboard-container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 2rem 1rem;
+        color: #000000; 
+        font-family: system-ui, sans-serif;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+
+    .stat-card {
+        background-color: #f9f9f9;
+        border: 1px solid #e0e0e0;
+        padding: 1.25rem;
+        border-radius: 8px;
+    }
+
+    .stat-label { font-size: 0.85rem; color: #555555; }
+    .stat-value { font-size: 1.5rem; font-weight: 600; }
+
+    .search-container { margin-bottom: 1.5rem; }
+
+    input[type="text"] {
+        width: 100%;
+        padding: 0.85rem 1rem;
+        border-radius: 8px;
+        border: 1px solid #cccccc;
+    }
+   .table-header, .table-row {
+        display: grid;
+        grid-template-columns: 40px 2fr 1fr 1fr 100px; 
+        padding: 1rem;
+        align-items: center;
+    }
+
+    .sort-btn {
+        background: #ffffff;
+        border: 1px solid #cccccc;
+        border-radius: 4px;
+        cursor: pointer;
+        padding: 4px 8px; 
+        font-size: 0.75rem;
+        font-weight: 600;
+        white-space: nowrap; 
+        transition: all 0.2s;
+    }
+
+    .sort-btn:hover { background: #eee; }
+
+    .is-user { background-color: #f0f7ff; font-weight: 600; }
+    .col-rank { color: #555; }
