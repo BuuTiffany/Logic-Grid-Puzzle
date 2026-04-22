@@ -1,3 +1,8 @@
+"""
+Service layer for puzzle generation, storage, and retrieval.
+All Supabase interaction lives here — views and commands stay thin.
+"""
+
 from __future__ import annotations
 
 import random
@@ -8,9 +13,13 @@ from django.conf import settings
 from supabase import create_client, Client
 
 from api.puzzles.generator import create_puzzle
-from api.puzzles.display import puzzle_to_dict
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Supabase client (module-level singleton)
+# ---------------------------------------------------------------------------
 
 _supabase: Optional[Client] = None
 
@@ -21,21 +30,75 @@ def _client() -> Client:
         _supabase = create_client(settings.SUPABASE_URL, settings.SUPABASE_SERVICE_KEY)
     return _supabase
 
+
+# ---------------------------------------------------------------------------
+# Serialization helpers
+# ---------------------------------------------------------------------------
+
 def _to_public(row: dict) -> dict:
     """Strip solution from a Supabase row before returning to a view."""
     public = dict(row)
     public.pop("solution", None)
     return public
 
+
 def _puzzle_to_storage_dict(puzzle, seed: int) -> dict:
-    """Full record for inserting into Supabase. Includes solution."""
-    data = puzzle_to_dict(puzzle)
-    data["seed"] = seed
-    data["used"] = False
-    return data
+    """Full record for inserting into Supabase. Columns must match the table schema exactly."""
+    return {
+        "grid":       f"{puzzle.rows}x{puzzle.cols}",
+        "difficulty": puzzle.difficulty,
+        "seed":       seed,
+        "categories": puzzle.categories,
+        "clues": [
+            {
+                "id":       i + 1,
+                "type":     c.clue_type,
+                "text":     c.to_text(puzzle.cols),
+                "cat1":     c.cat1,
+                "val1":     c.val1,
+                "cat2":     c.cat2,
+                "val2":     c.val2,
+                "position": c.position,
+            }
+            for i, c in enumerate(puzzle.clues)
+        ],
+        "solution":   puzzle.solution,
+        "used":       False,
+    }
+
+
+def _puzzle_to_public_dict(puzzle, stored_id: str) -> dict:
+    """Public shape returned to views — no solution, includes Supabase id."""
+    return {
+        "id":         stored_id,
+        "grid":       f"{puzzle.rows}x{puzzle.cols}",
+        "difficulty": puzzle.difficulty,
+        "categories": puzzle.categories,
+        "clues": [
+            {
+                "id":       i + 1,
+                "type":     c.clue_type,
+                "text":     c.to_text(puzzle.cols),
+                "cat1":     c.cat1,
+                "val1":     c.val1,
+                "cat2":     c.cat2,
+                "val2":     c.val2,
+                "position": c.position,
+            }
+            for i, c in enumerate(puzzle.clues)
+        ],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Core operations
+# ---------------------------------------------------------------------------
 
 def generate_and_store(grid: str = "4x5", difficulty: str = "moderate", seed: int = None) -> dict:
-    """Returns a dict: public puzzle dict with 'id' key added"""
+    """
+    Generate a puzzle, persist it to Supabase, and return the public shape
+    (no solution) with the assigned Supabase UUID included.
+    """
     if seed is None:
         seed = random.randint(0, 2 ** 31)
 
@@ -50,14 +113,13 @@ def generate_and_store(grid: str = "4x5", difficulty: str = "moderate", seed: in
     stored_id = res.data[0]["id"]
     logger.info("Stored puzzle id=%s grid=%s difficulty=%s seed=%s", stored_id, grid, difficulty, seed)
 
-    public = _to_public(puzzle_to_dict(puzzle))
-    public["id"] = stored_id
-    return public
+    return _puzzle_to_public_dict(puzzle, stored_id)
 
 
 def fetch_puzzle_private(puzzle_id: str) -> dict | None:
     """
     Fetch a full puzzle record including solution.
+    For server-side validation only — never forward this to the client.
     Returns None if the puzzle does not exist.
     """
     res = (
@@ -68,7 +130,7 @@ def fetch_puzzle_private(puzzle_id: str) -> dict | None:
         .maybe_single()
         .execute()
     )
-    return res.data  # None if not found
+    return res.data
 
 
 def get_or_generate(grid: str = "4x5", difficulty: str = "moderate") -> dict:
@@ -102,7 +164,6 @@ def get_or_generate(grid: str = "4x5", difficulty: str = "moderate") -> dict:
 
 def validate_solution(puzzle_id: str, user_solution: dict) -> bool:
     """
-    Compare user_solution against the stored solution server-side.
     Returns True if correct, False if wrong, raises ValueError if puzzle not found.
     """
     record = fetch_puzzle_private(puzzle_id)
@@ -114,7 +175,6 @@ def validate_solution(puzzle_id: str, user_solution: dict) -> bool:
 def get_hint(puzzle_id: str, category: str, position: int) -> str | None:
     """
     Return the correct value for a given category and 0-indexed position.
-    Used by the hint endpoint to reveal a single cell.
     Returns None if the puzzle is not found or inputs are out of range.
     """
     record = fetch_puzzle_private(puzzle_id)

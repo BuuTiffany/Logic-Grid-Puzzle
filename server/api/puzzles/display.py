@@ -64,29 +64,27 @@ def _print_solution_table(puzzle: Puzzle) -> None:
 # Serialization
 # ---------------------------------------------------------------------------
 
-def puzzle_to_dict(puzzle: Puzzle) -> dict[str, Any]:
-    """Serialize a Puzzle to a plain dict (JSON-safe)."""
+def _puzzle_to_storage_dict(puzzle, seed: int) -> dict:
     return {
-        "grid": f"{puzzle.rows}x{puzzle.cols}",
+        "grid":       f"{puzzle.rows}x{puzzle.cols}",
         "difficulty": puzzle.difficulty,
+        "seed":       seed,
         "categories": puzzle.categories,
-        "num_clues": len(puzzle.clues),
         "clues": [
             {
-                "id": i + 1,
-                "type": c.clue_type,
-                "text": c.to_text(puzzle.cols),
-                "cat1": c.cat1,
-                "val1": c.val1,
-                "cat2": c.cat2,
-                "val2": c.val2,
+                "id":       i + 1,
+                "type":     c.clue_type,
+                "text":     c.to_text(puzzle.cols),
+                "cat1":     c.cat1,
+                "val1":     c.val1,
+                "cat2":     c.cat2,
+                "val2":     c.val2,
                 "position": c.position,
             }
             for i, c in enumerate(puzzle.clues)
         ],
-        # Solution included here — your backend should strip this before
-        # sending to the frontend; keep it server-side for validation.
-        "solution": puzzle.solution,
+        "solution":   puzzle.solution,
+        "used":       False,
     }
 
 
