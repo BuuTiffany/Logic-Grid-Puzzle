@@ -26,9 +26,6 @@ SECRET_KEY = config('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
-
-
 # Application definition
 
 INSTALLED_APPS = [
@@ -84,20 +81,21 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'backend.wsgi.application'
 
-
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
-
-'''
-Migrate to postgres later
-'''
+SUPABASE_URL = config('SUPABASE_URL')
+SUPABASE_SERVICE_KEY = config('SUPABASE_SERVICE_KEY')
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": config('SUPABASE_DB_NAME'),
+        "USER": config('SUPABASE_DB_USER'),
+        "PASSWORD": config('SUPABASE_DB_PASSWORD'),
+        "HOST": config('SUPABASE_DB_HOST'),
+        "PORT": config('SUPABASE_DB_PORT', default='6543'),
+        "OPTIONS": {"sslmode": "require"},
     }
 }
-
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
