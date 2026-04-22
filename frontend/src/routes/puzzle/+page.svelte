@@ -3,34 +3,34 @@
     import { fetchPuzzle, validateSolution, fetchHint } from '$lib/api'
     import type { Puzzle } from '$lib/api'
 
-    // --- state ---
+    export let data
+
     let puzzle: Puzzle | null = null
     let loading = true
     let error = ''
-
-    // userGrid[category][position] = value the user has placed
     let userGrid: Record<string, string[]> = {}
     let result: 'correct' | 'wrong' | null = null
-    let hints: Record<string, Record<number, string>> = {}  // hints[category][position]
+    let hints: Record<string, Record<number, string>> = {}
 
-    // derive cols/rows from grid string e.g. "4x5"
-    $: cols = puzzle ? parseInt(puzzle.grid.split('x')[1]) : 0
+    // Derive cols directly from data, not from puzzle
+    // This way it's always correct before loadPuzzle runs
+    $: cols = parseInt(data.grid.split('x')[1])
 
-    // --- lifecycle ---
-    onMount(async () => {
-        await loadPuzzle()
+    onMount(() => {
+        loadPuzzle(data.grid, data.difficulty)
     })
 
-    async function loadPuzzle() {
+    async function loadPuzzle(grid: string, difficulty: string) {
         loading = true
         error = ''
         result = null
         hints = {}
+        puzzle = null
         try {
-            puzzle = await fetchPuzzle('4x5', 'moderate')
-            // initialise empty grid
+            puzzle = await fetchPuzzle(grid, difficulty)
+            const numCols = parseInt(grid.split('x')[1])
             userGrid = Object.fromEntries(
-                puzzle.categories.map(cat => [cat, Array(cols).fill('')])
+                puzzle.categories.map(cat => [cat, Array(numCols).fill('')])
             )
         } catch (e) {
             error = (e as Error).message
