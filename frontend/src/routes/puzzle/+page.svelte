@@ -1,5 +1,6 @@
 <script lang="ts">
     import { onMount } from 'svelte'
+    import { goto } from '$app/navigation'
     import { fetchPuzzle, validateSolution, fetchHint } from '$lib/api'
     import type { Puzzle } from '$lib/api'
 
@@ -11,9 +12,9 @@
     let userGrid: Record<string, string[]> = {}
     let result: 'correct' | 'wrong' | null = null
     let hints: Record<string, Record<number, string>> = {}
+    let checking = false
+    let activeCell: { cat: string; pos: number } | null = null
 
-    // Derive cols directly from data, not from puzzle
-    // This way it's always correct before loadPuzzle runs
     $: cols = parseInt(data.grid.split('x')[1])
 
     onMount(() => {
@@ -26,6 +27,7 @@
         result = null
         hints = {}
         puzzle = null
+        activeCell = null
         try {
             puzzle = await fetchPuzzle(grid, difficulty)
             const numCols = parseInt(grid.split('x')[1])
@@ -41,16 +43,20 @@
 
     function handleCellInput(cat: string, pos: number, value: string) {
         userGrid[cat][pos] = value
-        userGrid = { ...userGrid }   // trigger reactivity
+        userGrid = { ...userGrid }
+        result = null
     }
 
     async function handleValidate() {
-        if (!puzzle) return
+        if (!puzzle || checking) return
+        checking = true
         try {
             const res = await validateSolution(puzzle.id, userGrid)
             result = res.correct ? 'correct' : 'wrong'
         } catch (e) {
             error = (e as Error).message
+        } finally {
+            checking = false
         }
     }
 
@@ -58,104 +64,421 @@
         if (!puzzle) return
         try {
             const res = await fetchHint(puzzle.id, cat, pos)
-            hints = {
-                ...hints,
-                [cat]: { ...(hints[cat] ?? {}), [pos]: res.value }
-            }
-            // also fill the cell
+            hints = { ...hints, [cat]: { ...(hints[cat] ?? {}), [pos]: res.value } }
             handleCellInput(cat, pos, res.value)
         } catch (e) {
             error = (e as Error).message
         }
     }
+
+    function isHinted(cat: string, pos: number): boolean {
+        return hints[cat]?.[pos] !== undefined
+    }
+
+    function isFilled(cat: string, pos: number): boolean {
+        return (userGrid[cat]?.[pos] ?? '') !== ''
+    }
+
+    $: progress = puzzle
+        ? (() => {
+            let filled = 0
+            let total = 0
+            for (const cat of puzzle.categories) {
+                for (let i = 0; i < cols; i++) {
+                    total++
+                    if (isFilled(cat, i)) filled++
+                }
+            }
+            return Math.round((filled / total) * 100)
+        })()
+        : 0
 </script>
 
+<div class="bg-grid"></div>
+
 {#if loading}
-    <p>Loading puzzle...</p>
+    <div class="state-screen">
+        <div class="spinner">◈</div>
+        <p>Generating puzzle…</p>
+    </div>
 
 {:else if error}
-    <p class="error">{error}</p>
-    <button on:click={loadPuzzle}>Retry</button>
+    <div class="state-screen">
+        <p class="error-text">{error}</p>
+        <button class="btn-ghost" on:click={() => loadPuzzle(data.grid, data.difficulty)}>Try again</button>
+        <button class="btn-ghost" on:click={() => goto('/')}>← Back</button>
+    </div>
 
 {:else if puzzle}
-    <div class="puzzle">
-        <header>
-            <h1>Logic Puzzle</h1>
-            <p>{puzzle.grid} · {puzzle.difficulty}</p>
-            <button on:click={loadPuzzle}>New Puzzle</button>
-        </header>
+    <div class="layout">
 
-        <!-- Clues -->
-        <section class="clues">
-            <h2>Clues</h2>
-            <ol>
-                {#each puzzle.clues as clue}
-                    <li>{clue.text}</li>
+        <!-- Clues panel -->
+        <aside class="clues-panel">
+            <div class="panel-header">
+                <button class="back-btn btn-ghost" on:click={() => goto('/')}>←</button>
+                <div>
+                    <div class="label-sm">{puzzle.grid} · {puzzle.difficulty}</div>
+                    <div class="label-dim">{puzzle.clues.length} clues</div>
+                </div>
+            </div>
+
+            <h2 class="panel-title">Clues</h2>
+
+            <ol class="clue-list">
+                {#each puzzle.clues as clue, i}
+                    <li class="clue-item">
+                        <span class="clue-num">{i + 1}</span>
+                        <span class="clue-text">{clue.text}</span>
+                    </li>
                 {/each}
             </ol>
-        </section>
+            <div class="divider"></div>
+        </aside>
 
-        <!-- Grid -->
-        <section class="grid">
-            <h2>Your Solution</h2>
-            <table>
-                <thead>
-                    <tr>
-                        <th></th>
-                        {#each Array(cols) as _, i}
-                            <th>House {i + 1}</th>
-                        {/each}
-                    </tr>
-                </thead>
-                <tbody>
-                    {#each puzzle.categories as cat}
+        <!-- Puzzle panel -->
+        <div class="puzzle-panel">
+
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: {progress}%"></div>
+            </div>
+
+            <div class="grid-wrapper">
+                <table class="grid-table">
+                    <thead>
                         <tr>
-                            <td class="category-label">{cat}</td>
-                            {#each Array(cols) as _, pos}
-                                <td class="cell">
-                                    <input
-                                        type="text"
-                                        value={userGrid[cat]?.[pos] ?? ''}
-                                        on:input={e =>
-                                            handleCellInput(cat, pos, e.currentTarget.value)
-                                        }
-                                        class:hinted={hints[cat]?.[pos] !== undefined}
-                                    />
-                                    <button
-                                        class="hint-btn"
-                                        on:click={() => handleHint(cat, pos)}
-                                        title="Get hint"
-                                    >?</button>
-                                </td>
+                            <th class="cat-header"></th>
+                            {#each Array(cols) as _, i}
+                                <th class="house-header">
+                                    <span class="label-dim">{i + 1}</span>
+                                </th>
                             {/each}
                         </tr>
-                    {/each}
-                </tbody>
-            </table>
-        </section>
+                    </thead>
+                    <tbody>
+                        {#each puzzle.categories as cat}
+                            <tr>
+                                <td class="cat-label">{cat}</td>
+                                {#each Array(cols) as _, pos}
+                                    <td
+                                        class="cell"
+                                        class:hinted={isHinted(cat, pos)}
+                                        class:filled={isFilled(cat, pos) && !isHinted(cat, pos)}
+                                        class:active={activeCell?.cat === cat && activeCell?.pos === pos}
+                                    >
+                                        <input
+                                            type="text"
+                                            value={userGrid[cat]?.[pos] ?? ''}
+                                            placeholder="—"
+                                            on:focus={() => activeCell = { cat, pos }}
+                                            on:blur={() => activeCell = null}
+                                            on:input={e => handleCellInput(cat, pos, e.currentTarget.value)}
+                                            readonly={isHinted(cat, pos)}
+                                        />
+                                        {#if !isHinted(cat, pos)}
+                                            <button
+                                                class="hint-btn"
+                                                on:click={() => handleHint(cat, pos)}
+                                                title="Reveal this cell"
+                                            >?</button>
+                                        {/if}
+                                    </td>
+                                {/each}
+                            </tr>
+                        {/each}
+                    </tbody>
+                </table>
+            </div>
 
-        <!-- Validate -->
-        <section class="actions">
-            <button on:click={handleValidate}>Check Solution</button>
+            <div class="actions">
+                <button
+                    class="btn-primary"
+                    on:click={handleValidate}
+                >
+                    {checking ? 'Checking…' : 'Check Solution'}
+                </button>
+
+                <button
+                    class="btn-ghost"
+                    on:click={() => loadPuzzle(data.grid, data.difficulty)}
+                >
+                    New Puzzle
+                </button>
+            </div>
+
             {#if result === 'correct'}
-                <p class="success">✓ Correct!</p>
+                <div class="result correct">✓ Correct — well done.</div>
             {:else if result === 'wrong'}
-                <p class="error">✗ Not quite — keep trying.</p>
+                <div class="result wrong">✗ Not quite — keep going.</div>
             {/if}
-        </section>
+
+            {#if progress < 100}
+                <p class="label-dim progress-hint">{progress}% filled — complete the grid to check.</p>
+            {/if}
+            <div class="values-section">
+                <h2 class="panel-title">Values</h2>
+                {#if puzzle.values}
+                    {#each puzzle.categories as cat}
+                        <div class="value-group">
+                            <span class="value-cat">{cat}</span>
+                            <div class="value-chips">
+                                {#each puzzle.values[cat] as val}
+                                    <span class="value-chip">{val}</span>
+                                {/each}
+                            </div>
+                        </div>
+                    {/each}
+                {/if}
+            </div>
+        </div>
     </div>
 {/if}
 
 <style>
-    .puzzle { max-width: 900px; margin: 0 auto; padding: 1rem; }
-    table { border-collapse: collapse; width: 100%; }
-    th, td { border: 1px solid #ccc; padding: 0.5rem; text-align: center; }
-    .category-label { font-weight: bold; text-align: left; text-transform: capitalize; }
-    .cell { position: relative; }
-    input { width: 90px; border: none; text-align: center; background: transparent; }
-    input.hinted { background: #fefce8; }
-    .hint-btn { font-size: 0.7rem; cursor: pointer; }
-    .success { color: green; font-weight: bold; }
-    .error { color: red; }
-    ol { line-height: 2; }
+    .values-section {
+        display: flex;
+        flex-direction: column;
+        gap: 0.875rem;
+    }
+
+    .value-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.375rem;
+    }
+
+    .value-cat {
+        font-size: 0.6rem;
+        letter-spacing: 0.15em;
+        text-transform: uppercase;
+        color: var(--gold);
+        opacity: 0.8;
+    }
+
+    .value-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.3rem;
+    }
+
+    .value-chip {
+        font-size: 0.65rem;
+        padding: 0.2rem 0.5rem;
+        background: var(--surface-alt);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        color: var(--text-dim);
+        white-space: nowrap;
+    }
+    /* ── State screens ── */
+    .state-screen {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 1rem;
+        color: var(--text-dim);
+        font-size: 0.85rem;
+        position: relative;
+        z-index: 1;
+    }
+
+    .error-text { color: var(--error-text); }
+
+    /* ── Two-column layout ── */
+    .layout {
+        display: grid;
+        grid-template-columns: 300px 1fr;
+        min-height: 100vh;
+        position: relative;
+        z-index: 1;
+    }
+
+    /* ── Clues panel ── */
+    .clues-panel {
+        background: #0e0e12;
+        border-right: 1px solid var(--border-dim);
+        padding: 1.5rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
+        overflow-y: auto;
+        position: sticky;
+        top: 0;
+        height: 100vh;
+    }
+
+    .panel-header {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .back-btn {
+        width: 32px;
+        height: 32px;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        font-size: 1rem;
+    }
+
+    .panel-title {
+        font-size: 1.1rem;
+        color: var(--text-mid);
+        border-bottom: 1px solid var(--border-dim);
+        padding-bottom: 0.75rem;
+    }
+
+    .clue-list {
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .clue-item {
+        display: flex;
+        gap: 0.625rem;
+        align-items: flex-start;
+        font-size: 0.72rem;
+        line-height: 1.5;
+        color: var(--text-dim);
+    }
+
+    .clue-num {
+        color: var(--gold);
+        font-size: 0.6rem;
+        min-width: 18px;
+        padding-top: 0.1em;
+        opacity: 0.7;
+    }
+
+    .clue-text { flex: 1; }
+
+    /* ── Puzzle panel ── */
+    .puzzle-panel {
+        padding: 2rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+        overflow-x: auto;
+    }
+
+    /* ── Progress bar ── */
+    .progress-bar {
+        height: 2px;
+        background: var(--border-dim);
+        border-radius: 1px;
+        overflow: hidden;
+    }
+
+    .progress-fill {
+        height: 100%;
+        background: var(--gold);
+        border-radius: 1px;
+        transition: width 0.3s ease;
+    }
+
+    /* ── Grid table ── */
+    .grid-wrapper { overflow-x: auto; }
+
+    .grid-table {
+        border-collapse: collapse;
+        width: 100%;
+        min-width: 500px;
+    }
+
+    .cat-header { width: 110px; }
+
+    .house-header {
+        text-align: center;
+        padding: 0.5rem;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .cat-label {
+        font-size: 0.65rem;
+        letter-spacing: 0.1em;
+        text-transform: capitalize;
+        color: var(--text-muted);
+        padding: 0 0.75rem 0 0;
+        white-space: nowrap;
+        border-right: 1px solid var(--border-dim);
+    }
+
+    .cell {
+        border: 1px solid var(--border-dim);
+        position: relative;
+        transition: background 0.15s;
+    }
+
+    .cell:hover  { background: var(--surface); }
+    .cell.filled { background: #131310; }
+    .cell.hinted { background: #1a1a12; }
+    .cell.active { background: #16161c; border-color: #3a3a44; }
+
+    .cell input {
+        display: block;
+        width: 100%;
+        background: transparent;
+        border: none;
+        outline: none;
+        color: var(--text);
+        font-family: var(--font-mono);
+        font-size: 0.72rem;
+        text-align: center;
+        padding: 0.6rem 1.5rem 0.6rem 0.5rem;
+        cursor: text;
+    }
+
+    .cell.hinted input { color: var(--gold); cursor: default; }
+
+    input::placeholder { color: #333; }
+
+    .hint-btn {
+        position: absolute;
+        top: 50%;
+        right: 4px;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        color: #333;
+        cursor: pointer;
+        font-size: 0.65rem;
+        font-family: var(--font-mono);
+        padding: 2px 4px;
+        border-radius: 3px;
+        transition: color 0.15s;
+        line-height: 1;
+    }
+
+    .hint-btn:hover { color: var(--gold); }
+
+    /* ── Actions ── */
+    .actions {
+        display: flex;
+        gap: 0.75rem;
+        align-items: center;
+    }
+
+    .progress-hint { margin-top: -0.5rem; }
+
+    /* ── Responsive ── */
+    @media (max-width: 768px) {
+        .layout {
+            grid-template-columns: 1fr;
+            grid-template-rows: auto 1fr;
+        }
+
+        .clues-panel {
+            position: static;
+            height: auto;
+            max-height: 40vh;
+            border-right: none;
+            border-bottom: 1px solid var(--border-dim);
+        }
+    }
 </style>

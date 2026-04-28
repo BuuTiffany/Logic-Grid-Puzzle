@@ -17,6 +17,7 @@ export type Puzzle = {
     grid: string
     difficulty: string
     categories: string[]
+    values: Record<string, string[]>
     clues: Clue[]
 }
 

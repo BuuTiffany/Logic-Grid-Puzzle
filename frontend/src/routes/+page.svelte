@@ -4,6 +4,21 @@
     const GRIDS = ['3x4', '3x5', '4x4', '4x5', '4x6', '4x7']
     const DIFFICULTIES = ['easy', 'moderate', 'challenging']
 
+    const GRID_LABELS: Record<string, string> = {
+        '3x4': '3 categories · 4 houses',
+        '3x5': '3 categories · 5 houses',
+        '4x4': '4 categories · 4 houses',
+        '4x5': '4 categories · 5 houses',
+        '4x6': '4 categories · 6 houses',
+        '4x7': '4 categories · 7 houses',
+    }
+
+    const DIFF_LABELS: Record<string, string> = {
+        easy:        'More clues, gentler logic chains.',
+        moderate:    'Balanced challenge for most solvers.',
+        challenging: 'Minimal clues. No hand-holding.',
+    }
+
     let selectedGrid = '4x5'
     let selectedDifficulty = 'moderate'
 
@@ -12,85 +27,175 @@
     }
 </script>
 
-<main>
-    <h1>Logic Grid Puzzles</h1>
-    <p>Place each value in the correct house using the clues provided.</p>
+<div class="bg-grid"></div>
 
-    <section class="options">
-        <div class="option-group">
-            <h2>Grid Size</h2>
-            <p class="hint">Rows × Houses — more rows means more categories to solve.</p>
-            <div class="chips">
+<main class="landing">
+    <header class="landing-header">
+        <div class="logo-mark">◈</div>
+        <h1>Logic Grid</h1>
+        <p class="label-dim tagline">Deduce. Place. Solve.</p>
+    </header>
+
+    <div class="card landing-card">
+        <section class="option-section">
+            <div class="section-header">
+                <span class="label-sm">01</span>
+                <h2>Grid Size</h2>
+            </div>
+            <div class="grid-options">
                 {#each GRIDS as grid}
                     <button
-                        class="chip"
-                        class:selected={selectedGrid === grid}
+                        class="grid-btn"
+                        class:active={selectedGrid === grid}
                         on:click={() => selectedGrid = grid}
                     >
-                        {grid}
+                        <span class="grid-code">{grid}</span>
+                        <span class="grid-sub">{GRID_LABELS[grid]}</span>
                     </button>
                 {/each}
             </div>
-        </div>
+        </section>
 
-        <div class="option-group">
-            <h2>Difficulty</h2>
-            <p class="hint">Controls how many clues are given.</p>
-            <div class="chips">
+        <div class="divider"></div>
+
+        <section class="option-section">
+            <div class="section-header">
+                <span class="label-sm">02</span>
+                <h2>Difficulty</h2>
+            </div>
+            <div class="diff-options">
                 {#each DIFFICULTIES as diff}
                     <button
-                        class="chip"
-                        class:selected={selectedDifficulty === diff}
+                        class="diff-btn"
+                        class:active={selectedDifficulty === diff}
                         on:click={() => selectedDifficulty = diff}
                     >
-                        {diff}
+                        <span class="diff-name">{diff}</span>
+                        <span class="diff-desc">{DIFF_LABELS[diff]}</span>
                     </button>
                 {/each}
             </div>
-        </div>
-    </section>
+        </section>
 
-    <button class="start" on:click={startPuzzle}>
-        Start Puzzle
-    </button>
+        <button class="btn-primary start-btn" on:click={startPuzzle}>
+            <span>Begin Puzzle</span>
+            <span class="arrow">→</span>
+        </button>
+    </div>
+
+    <footer class="landing-footer">
+        <span class="label-dim">{selectedGrid} · {selectedDifficulty}</span>
+    </footer>
 </main>
 
 <style>
-    main {
-        max-width: 600px;
-        margin: 4rem auto;
-        padding: 1rem;
-        text-align: center;
+    .landing {
+        position: relative;
+        z-index: 1;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2rem;
+        padding: 2rem;
     }
-    h1 { font-size: 2rem; margin-bottom: 0.5rem; }
-    p.hint { color: #666; font-size: 0.875rem; margin: 0.25rem 0 1rem; }
 
-    .options { display: flex; flex-direction: column; gap: 2rem; margin: 2rem 0; }
-    .option-group { text-align: left; }
-    .option-group h2 { font-size: 1rem; margin-bottom: 0.25rem; }
+    .landing-header { text-align: center; }
 
-    .chips { display: flex; flex-wrap: wrap; gap: 0.5rem; }
-    .chip {
-        padding: 0.4rem 1rem;
-        border: 2px solid #ccc;
-        border-radius: 999px;
-        background: white;
+    .logo-mark {
+        font-size: 2.5rem;
+        color: var(--gold);
+        display: block;
+        margin-bottom: 0.5rem;
+        animation: pulse 3s ease-in-out infinite;
+    }
+
+    h1 {
+        font-size: 3.5rem;
+        font-weight: 900;
+        letter-spacing: -0.02em;
+        color: var(--text);
+        line-height: 1;
+    }
+
+    .tagline { margin-top: 0.5rem; }
+
+    .landing-card {
+        width: 100%;
+        max-width: 520px;
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+    }
+
+    .option-section {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .section-header {
+        display: flex;
+        align-items: baseline;
+        gap: 0.75rem;
+    }
+
+    h2 { font-size: 1rem; color: var(--text-mid); }
+
+    .grid-options {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.5rem;
+    }
+
+    .grid-btn {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.2rem;
+        padding: 0.75rem 0.5rem;
+        background: var(--surface-alt);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
         cursor: pointer;
-        font-size: 0.9rem;
-        transition: all 0.15s;
+        color: var(--text-dim);
+        transition: border-color 0.15s, color 0.15s, background 0.15s;
     }
-    .chip:hover { border-color: #888; }
-    .chip.selected { border-color: #3b82f6; background: #eff6ff; color: #1d4ed8; font-weight: 600; }
 
-    .start {
-        padding: 0.75rem 2.5rem;
-        background: #3b82f6;
-        color: white;
-        border: none;
-        border-radius: 8px;
-        font-size: 1.1rem;
+    .grid-btn:hover { border-color: var(--text-muted); color: var(--text-mid); }
+    .grid-btn.active { background: #1e1a14; border-color: var(--gold); color: var(--text); }
+
+    .grid-code { font-family: var(--font-mono); font-size: 1rem; font-weight: 500; }
+    .grid-sub { font-size: 0.6rem; letter-spacing: 0.05em; opacity: 0.6; text-align: center; }
+
+    .diff-options { display: flex; flex-direction: column; gap: 0.5rem; }
+
+    .diff-btn {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.875rem 1rem;
+        background: var(--surface-alt);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
         cursor: pointer;
-        transition: background 0.15s;
+        color: var(--text-dim);
+        gap: 1rem;
+        transition: border-color 0.15s, color 0.15s, background 0.15s;
+        text-align: left;
     }
-    .start:hover { background: #2563eb; }
+
+    .diff-btn:hover { border-color: var(--text-muted); color: var(--text-mid); }
+    .diff-btn.active { background: #1e1a14; border-color: var(--gold); color: var(--text); }
+
+    .diff-name { font-size: 0.85rem; font-weight: 500; text-transform: capitalize; min-width: 90px; }
+    .diff-desc { font-size: 0.7rem; opacity: 0.55; text-align: right; }
+
+    .start-btn { width: 100%; }
+
+    .arrow { font-size: 1.1rem; transition: transform 0.2s ease; }
+    .start-btn:hover .arrow { transform: translateX(4px); }
+
+    .landing-footer { font-size: 0.65rem; }
 </style>

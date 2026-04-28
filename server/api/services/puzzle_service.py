@@ -49,6 +49,7 @@ def _puzzle_to_storage_dict(puzzle, seed: int) -> dict:
         "difficulty": puzzle.difficulty,
         "seed":       seed,
         "categories": puzzle.categories,
+        "values":     {cat: list(vals) for cat, vals in puzzle.solution.items()},
         "clues": [
             {
                 "id":       i + 1,
@@ -74,6 +75,7 @@ def _puzzle_to_public_dict(puzzle, stored_id: str) -> dict:
         "grid":       f"{puzzle.rows}x{puzzle.cols}",
         "difficulty": puzzle.difficulty,
         "categories": puzzle.categories,
+        "values":     {cat: list(vals) for cat, vals in puzzle.solution.items()},
         "clues": [
             {
                 "id":       i + 1,
