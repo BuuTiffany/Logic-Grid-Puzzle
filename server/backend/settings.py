@@ -53,6 +53,7 @@ MIDDLEWARE = [
 
 # Which addresses are allowed to interact with the api
 CORS_ALLOWED_ORIGINS = [
+    "https://logicgridpuzzle.vercel.app",
     "http://127.0.0.1:5173", # Since svelte uses vite, it defaults to this format
     "http://localhost:5173", # Equivalent url
 ]
