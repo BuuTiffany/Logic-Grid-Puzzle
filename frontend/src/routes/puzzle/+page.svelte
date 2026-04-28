@@ -13,7 +13,7 @@
     let result: 'correct' | 'wrong' | null = null
     let hints: Record<string, Record<number, string>> = {}
     let checking = false
-    let activeCell: { cat: string; pos: number } | null = null
+    let dragTarget: { cat: string; pos: number } | null = null
 
     $: cols = parseInt(data.grid.split('x')[1])
 
@@ -27,7 +27,6 @@
         result = null
         hints = {}
         puzzle = null
-        activeCell = null
         try {
             puzzle = await fetchPuzzle(grid, difficulty)
             const numCols = parseInt(grid.split('x')[1])
@@ -45,6 +44,12 @@
         userGrid[cat][pos] = value
         userGrid = { ...userGrid }
         result = null
+    }
+
+    function handleClearCell(e: MouseEvent, cat: string, pos: number) {
+        e.preventDefault()
+        if (isHinted(cat, pos)) return
+        handleCellInput(cat, pos, '')
     }
 
     async function handleValidate() {
@@ -142,6 +147,8 @@
                 <div class="progress-fill" style="width: {progress}%"></div>
             </div>
 
+            <p class="panel-title">Drag values into cells · Right-click a filled cell to remove</p>
+
             <div class="grid-wrapper">
                 <table class="grid-table">
                     <thead>
@@ -163,18 +170,31 @@
                                         class="cell"
                                         class:hinted={isHinted(cat, pos)}
                                         class:filled={isFilled(cat, pos) && !isHinted(cat, pos)}
-                                        class:active={activeCell?.cat === cat && activeCell?.pos === pos}
+                                        class:active={dragTarget?.cat === cat && dragTarget?.pos === pos}
+                                        on:contextmenu={e => handleClearCell(e, cat, pos)}
+                                        on:dragover={e => {
+                                            if (!isHinted(cat, pos)) { e.preventDefault(); dragTarget = { cat, pos } }
+                                        }}
+                                        on:dragleave={() => dragTarget = null}
+                                        on:drop={e => {
+                                            e.preventDefault()
+                                            dragTarget = null
+                                            if (isHinted(cat, pos)) return
+                                            if (!e.dataTransfer) return
+                                            const { cat: srcCat, val } = JSON.parse(e.dataTransfer.getData('text/plain'))
+                                            if (srcCat !== cat) return
+                                            handleCellInput(cat, pos, val)
+                                        }}
                                     >
-                                        <input
-                                            type="text"
-                                            value={userGrid[cat]?.[pos] ?? ''}
-                                            placeholder="—"
-                                            on:focus={() => activeCell = { cat, pos }}
-                                            on:blur={() => activeCell = null}
-                                            on:input={e => handleCellInput(cat, pos, e.currentTarget.value)}
-                                            readonly={isHinted(cat, pos)}
-                                        />
-                                        {#if !isHinted(cat, pos)}
+                                        <div
+                                            class="cell-value"
+                                            class:hinted-val={isHinted(cat, pos)}
+                                            role="listitem"
+                                            tabindex="-1"
+                                        >
+                                            {userGrid[cat]?.[pos] || ''}
+                                        </div>
+                                        {#if !isHinted(cat, pos) && !isFilled(cat, pos)}
                                             <button
                                                 class="hint-btn"
                                                 on:click={() => handleHint(cat, pos)}
@@ -190,17 +210,10 @@
             </div>
 
             <div class="actions">
-                <button
-                    class="btn-primary"
-                    on:click={handleValidate}
-                >
+                <button class="btn-primary" on:click={handleValidate}>
                     {checking ? 'Checking…' : 'Check Solution'}
                 </button>
-
-                <button
-                    class="btn-ghost"
-                    on:click={() => loadPuzzle(data.grid, data.difficulty)}
-                >
+                <button class="btn-ghost" on:click={() => loadPuzzle(data.grid, data.difficulty)}>
                     New Puzzle
                 </button>
             </div>
@@ -214,6 +227,7 @@
             {#if progress < 100}
                 <p class="label-dim progress-hint">{progress}% filled — complete the grid to check.</p>
             {/if}
+
             <div class="values-section">
                 <h2 class="panel-title">Values</h2>
                 {#if puzzle.values}
@@ -222,7 +236,20 @@
                             <span class="value-cat">{cat}</span>
                             <div class="value-chips">
                                 {#each puzzle.values[cat] as val}
-                                    <span class="value-chip">{val}</span>
+                                    {@const isUsed = (userGrid[cat] ?? []).includes(val)}
+                                    <span
+                                        class="value-chip"
+                                        class:used={isUsed}
+                                        draggable="true"
+                                        role="listitem"
+                                        tabindex="-1"
+                                        on:dragstart={e => {
+                                            if (isUsed) { e.preventDefault(); return }
+                                            if (!e.dataTransfer) return
+                                            e.dataTransfer.setData('text/plain', JSON.stringify({ cat, val }))
+                                            e.dataTransfer.effectAllowed = 'move'
+                                        }}
+                                    >{val}</span>
                                 {/each}
                             </div>
                         </div>
@@ -234,6 +261,11 @@
 {/if}
 
 <style>
+    .drag-hint {
+        font-size: 0.7rem;
+        margin-top: -0.75rem;
+    }
+
     .values-section {
         display: flex;
         flex-direction: column;
@@ -268,7 +300,20 @@
         border-radius: 4px;
         color: var(--text-dim);
         white-space: nowrap;
+        transition: opacity 0.15s;
+        cursor: grab;
     }
+
+    .value-chip.used {
+        opacity: 0.25;
+        cursor: default;
+        pointer-events: none;
+    }
+
+    .value-chip:not(.used):active {
+        cursor: grabbing;
+    }
+
     /* ── State screens ── */
     .state-screen {
         min-height: 100vh;
@@ -413,30 +458,36 @@
         border: 1px solid var(--border-dim);
         position: relative;
         transition: background 0.15s;
+        min-width: 80px;
     }
 
-    .cell:hover  { background: var(--surface); }
+    .cell:hover { background: var(--surface); }
     .cell.filled { background: #131310; }
     .cell.hinted { background: #1a1a12; }
-    .cell.active { background: #16161c; border-color: #3a3a44; }
 
-    .cell input {
-        display: block;
-        width: 100%;
-        background: transparent;
-        border: none;
-        outline: none;
-        color: var(--text);
-        font-family: var(--font-mono);
-        font-size: 0.72rem;
-        text-align: center;
-        padding: 0.6rem 1.5rem 0.6rem 0.5rem;
-        cursor: text;
+    .cell.filled:not(.hinted) {
+        cursor: context-menu;
     }
 
-    .cell.hinted input { color: var(--gold); cursor: default; }
+    .cell.active {
+        background: #16161c;
+        border-color: var(--gold);
+        border-style: dashed;
+    }
 
-    input::placeholder { color: #333; }
+    .cell-value {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 2rem;
+        font-family: var(--font-mono);
+        font-size: 0.72rem;
+        color: var(--text);
+        padding: 0.3rem 1.2rem 0.3rem 0.3rem;
+        user-select: none;
+    }
+
+    .hinted-val { color: var(--gold); }
 
     .hint-btn {
         position: absolute;
