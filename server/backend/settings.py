@@ -58,9 +58,9 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 ALLOWED_HOSTS = [
+    'logic-grid-puzzle.onrender.com',
     'localhost',
-    '127.0.0.1',
-    'https://logic-grid-puzzle.onrender.com'
+    '127.0.0.1'
 ]
 
 ROOT_URLCONF = 'backend.urls'
