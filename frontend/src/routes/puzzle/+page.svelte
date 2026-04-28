@@ -2,6 +2,7 @@
     import { onMount } from 'svelte'
     import { goto } from '$app/navigation'
     import { fetchPuzzle, validateSolution, fetchHint } from '$lib/api'
+    import GuestNotice from '$lib/GuestNotice.svelte'
     import type { Puzzle } from '$lib/api'
 
     export let data
@@ -99,6 +100,7 @@
         : 0
 </script>
 
+<GuestNotice message="You are playing as a guest." />
 <div class="bg-grid"></div>
 
 {#if loading}
