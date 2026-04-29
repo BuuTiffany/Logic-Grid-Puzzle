@@ -49,6 +49,22 @@ export async function validateSolution(
     return res.json()
 }
 
+export async function submitSolve(payload: {
+    username: string
+    puzzle_id: string
+    grid: string
+    difficulty: string
+    solve_time: number
+}): Promise<{ saved: boolean }> {
+    const res = await fetch(`${API_URL}/solves/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    })
+    if (!res.ok) throw new Error(`Submit failed: ${res.statusText}`)
+    return res.json()
+}
+
 export async function fetchHint(
     puzzleId: string,
     category: string,

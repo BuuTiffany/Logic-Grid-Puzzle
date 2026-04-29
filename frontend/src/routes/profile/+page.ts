@@ -1,22 +1,15 @@
 import type { PageLoad } from './$types';
-
-interface Solve {
-    puzzle: string;
-    size: string;
-    difficulty: string;
-    time: string;
-    date: string;
-}
+import { PUBLIC_API_URL } from '$env/static/public';
 
 export const load: PageLoad = async ({ fetch }) => {
     /*
-    const response = await fetch('/api/profile');
-    if (!response.ok) throw new Error('Failed to fetch');
-    const data = await response.json();
-    return { username: data.username, stats: data.stats, solves: data.solves };
+    const response = await fetch(`${PUBLIC_API_URL}/profile/?username=You`);
+    if (!response.ok) throw new Error('Failed to fetch profile');
+    const { username, solves } = await response.json();
     */
-    
-    const solves = [
+
+    const username = 'You';
+    const solves: { puzzle: string; size: string; difficulty: string; time: string; date: string }[] = [
         { puzzle: '4x4 Easy',        size: '4x4', difficulty: 'Easy',        time: '1:10', date: '2026-04-11T22:30:00Z' },
         { puzzle: '4x5 Moderate',    size: '4x5', difficulty: 'Moderate',    time: '2:34', date: '2026-04-10T14:05:00Z' },
         { puzzle: '4x4 Easy',        size: '4x4', difficulty: 'Easy',        time: '1:47', date: '2026-04-08T09:12:00Z' },
@@ -56,7 +49,7 @@ export const load: PageLoad = async ({ fetch }) => {
     const averageTime = `${avgMinutes}:${avgSecs.toString().padStart(2, '0')}`;
 
     return {
-        username: 'You',
+        username,
         stats: {
             puzzlesSolved: 19,
             favoriteDifficulty,
