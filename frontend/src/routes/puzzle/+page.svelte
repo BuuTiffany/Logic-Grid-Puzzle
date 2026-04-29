@@ -1,7 +1,9 @@
 <script lang="ts">
-    import { onMount } from 'svelte'
+    import { onMount, onDestroy } from 'svelte'
     import { goto } from '$app/navigation'
     import { fetchPuzzle, validateSolution, fetchHint } from '$lib/api'
+    import GuestNotice from '$lib/GuestNotice.svelte'
+    import NamePrompt from '$lib/NamePrompt.svelte'
     import type { Puzzle } from '$lib/api'
 
     export let data
@@ -14,6 +16,27 @@
     let hints: Record<string, Record<number, string>> = {}
     let checking = false
     let dragTarget: { cat: string; pos: number } | null = null
+    let startTime: number | null = null
+    let solveSeconds = 0
+    let showNamePrompt = false
+    let elapsed = 0
+    let timerInterval: ReturnType<typeof setInterval> | null = null
+
+    $: displayTime = `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, '0')}`
+
+    function startTimer() {
+        if (timerInterval) clearInterval(timerInterval)
+        elapsed = 0
+        timerInterval = setInterval(() => {
+            if (startTime !== null) elapsed = Math.floor((Date.now() - startTime) / 1000)
+        }, 1000)
+    }
+
+    function stopTimer() {
+        if (timerInterval) { clearInterval(timerInterval); timerInterval = null }
+    }
+
+    onDestroy(stopTimer)
 
     $: cols = parseInt(data.grid.split('x')[1])
 
@@ -27,12 +50,17 @@
         result = null
         hints = {}
         puzzle = null
+        startTime = null
+        showNamePrompt = false
+        stopTimer()
         try {
             puzzle = await fetchPuzzle(grid, difficulty)
             const numCols = parseInt(grid.split('x')[1])
             userGrid = Object.fromEntries(
                 puzzle.categories.map(cat => [cat, Array(numCols).fill('')])
             )
+            startTime = Date.now()
+            startTimer()
         } catch (e) {
             error = (e as Error).message
         } finally {
@@ -58,6 +86,12 @@
         try {
             const res = await validateSolution(puzzle.id, userGrid)
             result = res.correct ? 'correct' : 'wrong'
+            if (res.correct && startTime !== null) {
+                solveSeconds = Math.max(1, Math.round((Date.now() - startTime) / 1000))
+                stopTimer()
+                elapsed = solveSeconds
+                showNamePrompt = true
+            }
         } catch (e) {
             error = (e as Error).message
         } finally {
@@ -99,6 +133,17 @@
         : 0
 </script>
 
+<GuestNotice message="You are playing as a guest." />
+
+{#if showNamePrompt && puzzle}
+    <NamePrompt
+        puzzle_id={puzzle.id}
+        grid={puzzle.grid}
+        difficulty={puzzle.difficulty}
+        solve_time={solveSeconds}
+        onClose={() => showNamePrompt = false}
+    />
+{/if}
 <div class="bg-grid"></div>
 
 {#if loading}
@@ -124,6 +169,9 @@
                 <div>
                     <div class="label-sm">{puzzle.grid} · {puzzle.difficulty}</div>
                     <div class="label-dim">{puzzle.clues.length} clues</div>
+                </div>
+                <div class="timer" class:timer-done={result === 'correct'}>
+                    {displayTime}
                 </div>
             </div>
 
@@ -358,6 +406,18 @@
         align-items: center;
         gap: 0.75rem;
     }
+
+    .timer {
+        margin-left: auto;
+        font-family: var(--font-mono);
+        font-size: 1rem;
+        font-variant-numeric: tabular-nums;
+        color: var(--text-muted);
+        letter-spacing: 0.05em;
+        transition: color 0.3s;
+    }
+
+    .timer-done { color: var(--gold); }
 
     .back-btn {
         width: 32px;

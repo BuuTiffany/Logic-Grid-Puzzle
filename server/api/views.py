@@ -1,13 +1,63 @@
+import re
+import uuid as _uuid
+
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
- 
+
 from api.services.puzzle_service import (
     get_or_generate,
     validate_solution,
     get_hint,
+    get_leaderboard,
+    get_profile,
+    submit_solve,
 )
 from api.puzzles.generator import VALID_GRIDS, VALID_DIFFICULTIES
+
+_USERNAME_RE = re.compile(r'^[\w\s\-\.]+$')   # letters, digits, _, space, hyphen, dot
+_MAX_USERNAME = 30
+_MAX_SOLVE_TIME = 86_400                       # 24 h ceiling
+
+@api_view(['POST'])
+def submitSolve(request):
+    username   = str(request.data.get("username",   "")).strip()
+    puzzle_id  = str(request.data.get("puzzle_id",  "")).strip()
+    grid       = str(request.data.get("grid",       "")).strip()
+    difficulty = str(request.data.get("difficulty", "")).strip().lower()
+    solve_time = request.data.get("solve_time")
+
+    # Empty username → skip silently, no DB write
+    if not username:
+        return Response({"saved": False}, status=status.HTTP_200_OK)
+
+    if len(username) > _MAX_USERNAME or not _USERNAME_RE.match(username):
+        return Response({"error": "Invalid username."}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        _uuid.UUID(puzzle_id)
+    except (ValueError, AttributeError):
+        return Response({"error": "Invalid puzzle_id."}, status=status.HTTP_400_BAD_REQUEST)
+
+    if grid not in VALID_GRIDS:
+        return Response({"error": "Invalid grid."}, status=status.HTTP_400_BAD_REQUEST)
+
+    if difficulty not in VALID_DIFFICULTIES:
+        return Response({"error": "Invalid difficulty."}, status=status.HTTP_400_BAD_REQUEST)
+
+    if not isinstance(solve_time, int) or solve_time <= 0 or solve_time > _MAX_SOLVE_TIME:
+        return Response({"error": "Invalid solve_time."}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        submit_solve(puzzle_id, username, grid, difficulty, solve_time)
+    except Exception as e:
+        return Response(
+            {"error": "Failed to save solve.", "detail": str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+    return Response({"saved": True}, status=status.HTTP_200_OK)
+
 
 @api_view(['GET'])
 def hello(request):
@@ -15,7 +65,32 @@ def hello(request):
 
 @api_view(['GET'])
 def getLeaderboard(request):
-    return Response({"message": "Leaderboard endpoint."})
+    try:
+        players = get_leaderboard()
+    except Exception as e:
+        return Response(
+            {"error": "Failed to fetch leaderboard.", "detail": str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+    return Response({"players": players}, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+def getProfile(request):
+    username = request.query_params.get("username", "")
+    if not username:
+        return Response(
+            {"error": "Query param 'username' is required."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    try:
+        solves = get_profile(username)
+    except Exception as e:
+        return Response(
+            {"error": "Failed to fetch profile.", "detail": str(e)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+    return Response({"username": username, "solves": solves}, status=status.HTTP_200_OK)
 
 @api_view(['GET'])
 def getPuzzle(request):

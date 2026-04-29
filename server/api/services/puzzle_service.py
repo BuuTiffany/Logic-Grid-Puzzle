@@ -174,6 +174,61 @@ def validate_solution(puzzle_id: str, user_solution: dict) -> bool:
     return record["solution"] == user_solution
 
 
+def submit_solve(puzzle_id: str, username: str, grid: str, difficulty: str, solve_time: int) -> None:
+    _client().table("solves").insert({
+        "puzzle_id":  puzzle_id,
+        "username":   username,
+        "grid":       grid,
+        "difficulty": difficulty,
+        "solve_time": solve_time,
+    }).execute()
+
+
+def _fmt_time(seconds: int) -> str:
+    return f"{seconds // 60}:{seconds % 60:02d}"
+
+
+def get_leaderboard() -> list[dict]:
+    res = (
+        _client()
+        .table("solves")
+        .select("username, grid, difficulty, solve_time, completed_at")
+        .order("solve_time")
+        .execute()
+    )
+    return [
+        {
+            "name":       row["username"],
+            "size":       row["grid"],
+            "difficulty": row["difficulty"].capitalize(),
+            "time":       _fmt_time(row["solve_time"]),
+            "date":       row["completed_at"],
+        }
+        for row in (res.data or [])
+    ]
+
+
+def get_profile(username: str) -> list[dict]:
+    res = (
+        _client()
+        .table("solves")
+        .select("grid, difficulty, solve_time, completed_at")
+        .eq("username", username)
+        .order("completed_at", desc=True)
+        .execute()
+    )
+    return [
+        {
+            "puzzle":     f"{row['grid']} {row['difficulty'].capitalize()}",
+            "size":       row["grid"],
+            "difficulty": row["difficulty"].capitalize(),
+            "time":       _fmt_time(row["solve_time"]),
+            "date":       row["completed_at"],
+        }
+        for row in (res.data or [])
+    ]
+
+
 def get_hint(puzzle_id: str, category: str, position: int) -> str | None:
     """
     Return the correct value for a given category and 0-indexed position.

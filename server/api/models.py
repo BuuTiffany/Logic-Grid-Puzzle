@@ -1,11 +1,15 @@
 from django.db import models
-from django.contrib.auth.models import User
 
-class PuzzleScore(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    puzzle_id = models.CharField(max_length=100)
-    solve_time = models.FloatField()
+
+class Solve(models.Model):
+    puzzle_id    = models.UUIDField()
+    username     = models.CharField(max_length=150)
+    grid         = models.CharField(max_length=10)
+    difficulty   = models.CharField(max_length=20)
+    solve_time   = models.PositiveIntegerField()  # seconds
     completed_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        db_table = 'solves'
         ordering = ['solve_time']
+        managed  = False  # table is created/owned by Supabase
