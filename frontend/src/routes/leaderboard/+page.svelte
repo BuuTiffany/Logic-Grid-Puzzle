@@ -1,7 +1,18 @@
 
 <script lang="ts">
     import './page.css'
+    import { authUser } from '$lib/auth'
+
     let { data } = $props();
+
+    type LeaderboardPlayer = {
+        name: string;
+        userId: number | null;
+        size: string;
+        difficulty: string;
+        time: string;
+        date: string;
+    };
 
     const PAGE_SIZE = 10;
     const SIZES = ['3x4', '3x5', '4x4', '4x5', '4x6', '4x7'];
@@ -14,7 +25,8 @@
     let currentPage   = $state(1);
 
     let processedPlayers = $derived.by(() => {
-        let list = [...data.players].sort((a, b) => {
+        let list = [...data.players] as LeaderboardPlayer[];
+        list = list.sort((a, b) => {
             if (sortBy === 'time') {
                 const toSec = (t: string) =>
                     t.split(':').reduce((acc, v) => acc * 60 + +v, 0);
@@ -35,6 +47,27 @@
 
     let totalPages     = $derived(Math.max(1, Math.ceil(processedPlayers.length / PAGE_SIZE)));
     let pagePlayers    = $derived(processedPlayers.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE));
+    let sortedByTime    = $derived([...data.players].sort((a, b) => timeToSeconds(a.time) - timeToSeconds(b.time)) as LeaderboardPlayer[]);
+    let currentUserRank = $derived.by(() => {
+        if (!$authUser?.id) return 0;
+        return sortedByTime.findIndex((player) => player.userId === $authUser?.id) + 1;
+    });
+    let currentUserTopPercent = $derived.by(() => {
+        if (!currentUserRank || !sortedByTime.length) return 'N/A';
+        return `${Math.round((currentUserRank / sortedByTime.length) * 1000) / 10}%`;
+    });
+
+    function timeToSeconds(t: string) {
+        return t.split(':').reduce((acc, v) => acc * 60 + +v, 0);
+    }
+
+    function isCurrentUser(player: LeaderboardPlayer) {
+        return !!$authUser?.id && player.userId === $authUser.id;
+    }
+
+    function displayName(player: LeaderboardPlayer) {
+        return isCurrentUser(player) ? 'You' : player.name;
+    }
 
     function toggleSort() {
         sortBy = sortBy === 'time' ? 'date' : 'time';
@@ -51,11 +84,11 @@
         </div>
         <div class="stat-card">
             <span class="stat-label">Your rank</span>
-            <span class="stat-value">{data.stats.yourRank}</span>
+            <span class="stat-value">{currentUserRank ? `#${currentUserRank}` : 'N/A'}</span>
         </div>
         <div class="stat-card">
             <span class="stat-label">Top %</span>
-            <span class="stat-value">{data.stats.topPercent}</span>
+            <span class="stat-value">{currentUserTopPercent}</span>
         </div>
     </div>
 
@@ -95,9 +128,9 @@
 
         <div class="table-body">
             {#each pagePlayers as player, i}
-                <div class="table-row" class:is-user={player.name === 'You'}>
+                <div class="table-row" class:is-user={isCurrentUser(player)}>
                     <div class="col-rank">{(currentPage - 1) * PAGE_SIZE + i + 1}</div>
-                    <div class="col-player">{player.name}</div>
+                    <div class="col-player">{displayName(player)}</div>
                     <div class="col-size">{player.size}</div>
                     <div class="col-difficulty">{player.difficulty}</div>
                     <div class="col-time">{player.time}</div>

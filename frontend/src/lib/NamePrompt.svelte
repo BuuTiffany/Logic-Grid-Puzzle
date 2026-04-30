@@ -1,5 +1,6 @@
 <script lang="ts">
     import { submitSolve } from '$lib/api';
+    import { sanitizeUsernameInput } from '$lib/input';
 
     let {
         puzzle_id,
@@ -21,7 +22,8 @@
     let errMsg   = $state('');
 
     async function handleSubmit() {
-        const trimmed = username.trim();
+        const trimmed = sanitizeUsernameInput(username);
+        username = trimmed;
         if (!trimmed) { onClose(); return; }
         saving = true;
         errMsg = '';
@@ -56,8 +58,8 @@
                 placeholder="Your name"
                 maxlength="30"
                 bind:value={username}
+                oninput={() => username = sanitizeUsernameInput(username)}
                 onkeydown={handleKey}
-                autofocus
             />
             {#if errMsg}
                 <p class="error-text">{errMsg}</p>

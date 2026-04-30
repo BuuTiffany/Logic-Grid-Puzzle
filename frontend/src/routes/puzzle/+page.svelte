@@ -1,28 +1,30 @@
 <script lang="ts">
     import { onMount, onDestroy } from 'svelte'
     import { goto } from '$app/navigation'
-    import { fetchPuzzle, validateSolution, fetchHint } from '$lib/api'
+    import { fetchPuzzle, validateSolution, fetchHint, submitSolve } from '$lib/api'
+    import { authLoaded, authUser } from '$lib/auth'
     import GuestNotice from '$lib/GuestNotice.svelte'
     import NamePrompt from '$lib/NamePrompt.svelte'
     import type { Puzzle } from '$lib/api'
 
-    export let data
+    let { data } = $props()
 
-    let puzzle: Puzzle | null = null
-    let loading = true
-    let error = ''
-    let userGrid: Record<string, string[]> = {}
-    let result: 'correct' | 'wrong' | null = null
-    let hints: Record<string, Record<number, string>> = {}
-    let checking = false
-    let dragTarget: { cat: string; pos: number } | null = null
-    let startTime: number | null = null
-    let solveSeconds = 0
-    let showNamePrompt = false
-    let elapsed = 0
-    let timerInterval: ReturnType<typeof setInterval> | null = null
+    let puzzle = $state<Puzzle | null>(null)
+    let loading = $state(true)
+    let error = $state('')
+    let userGrid = $state<Record<string, string[]>>({})
+    let result = $state<'correct' | 'wrong' | null>(null)
+    let hints = $state<Record<string, Record<number, string>>>({})
+    let cluesRemaining = $state(0)
+    let checking = $state(false)
+    let dragTarget = $state<{ cat: string; pos: number } | null>(null)
+    let startTime = $state<number | null>(null)
+    let solveSeconds = $state(0)
+    let showNamePrompt = $state(false)
+    let elapsed = $state(0)
+    let timerInterval = $state<ReturnType<typeof setInterval> | null>(null)
 
-    $: displayTime = `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, '0')}`
+    let displayTime = $derived(`${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, '0')}`)
 
     function startTimer() {
         if (timerInterval) clearInterval(timerInterval)
@@ -38,7 +40,7 @@
 
     onDestroy(stopTimer)
 
-    $: cols = parseInt(data.grid.split('x')[1])
+    let cols = $derived(parseInt(data.grid.split('x')[1]))
 
     onMount(() => {
         loadPuzzle(data.grid, data.difficulty)
@@ -49,12 +51,14 @@
         error = ''
         result = null
         hints = {}
+        cluesRemaining = 0
         puzzle = null
         startTime = null
         showNamePrompt = false
         stopTimer()
         try {
             puzzle = await fetchPuzzle(grid, difficulty)
+            cluesRemaining = puzzle.clue_limit
             const numCols = parseInt(grid.split('x')[1])
             userGrid = Object.fromEntries(
                 puzzle.categories.map(cat => [cat, Array(numCols).fill('')])
@@ -69,8 +73,10 @@
     }
 
     function handleCellInput(cat: string, pos: number, value: string) {
-        userGrid[cat][pos] = value
-        userGrid = { ...userGrid }
+        userGrid = {
+            ...userGrid,
+            [cat]: userGrid[cat].map((cell, i) => i === pos ? value : cell),
+        }
         result = null
     }
 
@@ -90,7 +96,16 @@
                 solveSeconds = Math.max(1, Math.round((Date.now() - startTime) / 1000))
                 stopTimer()
                 elapsed = solveSeconds
-                showNamePrompt = true
+                if ($authUser?.username) {
+                    await submitSolve({
+                        puzzle_id: puzzle.id,
+                        grid: puzzle.grid,
+                        difficulty: puzzle.difficulty,
+                        solve_time: solveSeconds,
+                    })
+                } else {
+                    showNamePrompt = true
+                }
             }
         } catch (e) {
             error = (e as Error).message
@@ -100,11 +115,12 @@
     }
 
     async function handleHint(cat: string, pos: number) {
-        if (!puzzle) return
+        if (!puzzle || cluesRemaining <= 0 || isHinted(cat, pos)) return
         try {
             const res = await fetchHint(puzzle.id, cat, pos)
             hints = { ...hints, [cat]: { ...(hints[cat] ?? {}), [pos]: res.value } }
             handleCellInput(cat, pos, res.value)
+            cluesRemaining = Math.max(0, cluesRemaining - 1)
         } catch (e) {
             error = (e as Error).message
         }
@@ -118,24 +134,26 @@
         return (userGrid[cat]?.[pos] ?? '') !== ''
     }
 
-    $: progress = puzzle
-        ? (() => {
-            let filled = 0
-            let total = 0
-            for (const cat of puzzle.categories) {
-                for (let i = 0; i < cols; i++) {
-                    total++
-                    if (isFilled(cat, i)) filled++
-                }
+    let progress = $derived.by(() => {
+        if (!puzzle) return 0
+        let filled = 0
+        let total = 0
+        for (const cat of puzzle.categories) {
+            for (let i = 0; i < cols; i++) {
+                total++
+                if ((userGrid[cat]?.[i] ?? '') !== '') filled++
             }
-            return Math.round((filled / total) * 100)
-        })()
-        : 0
+        }
+        return total ? Math.round((filled / total) * 100) : 0
+    })
+    let clueText = $derived(`${cluesRemaining} ${cluesRemaining === 1 ? 'clue' : 'clues'}`)
 </script>
 
-<GuestNotice message="You are playing as a guest." />
+{#if $authLoaded && !$authUser}
+    <GuestNotice message="You are playing as a guest." />
+{/if}
 
-{#if showNamePrompt && puzzle}
+{#if showNamePrompt && puzzle && !$authUser}
     <NamePrompt
         puzzle_id={puzzle.id}
         grid={puzzle.grid}
@@ -155,8 +173,8 @@
 {:else if error}
     <div class="state-screen">
         <p class="error-text">{error}</p>
-        <button class="btn-ghost" on:click={() => loadPuzzle(data.grid, data.difficulty)}>Try again</button>
-        <button class="btn-ghost" on:click={() => goto('/')}>← Back</button>
+        <button class="btn-ghost" onclick={() => loadPuzzle(data.grid, data.difficulty)}>Try again</button>
+        <button class="btn-ghost" onclick={() => goto('/puzzles')}>← Back</button>
     </div>
 
 {:else if puzzle}
@@ -165,10 +183,10 @@
         <!-- Clues panel -->
         <aside class="clues-panel">
             <div class="panel-header">
-                <button class="back-btn btn-ghost" on:click={() => goto('/')}>←</button>
+                <button class="back-btn btn-ghost" onclick={() => goto('/puzzles')}>←</button>
                 <div>
                     <div class="label-sm">{puzzle.grid} · {puzzle.difficulty}</div>
-                    <div class="label-dim">{puzzle.clues.length} clues</div>
+                    <div class="clue-counter" class:no-clues={cluesRemaining === 0}>{clueText}</div>
                 </div>
                 <div class="timer" class:timer-done={result === 'correct'}>
                     {displayTime}
@@ -219,12 +237,12 @@
                                         class:hinted={isHinted(cat, pos)}
                                         class:filled={isFilled(cat, pos) && !isHinted(cat, pos)}
                                         class:active={dragTarget?.cat === cat && dragTarget?.pos === pos}
-                                        on:contextmenu={e => handleClearCell(e, cat, pos)}
-                                        on:dragover={e => {
+                                        oncontextmenu={e => handleClearCell(e, cat, pos)}
+                                        ondragover={e => {
                                             if (!isHinted(cat, pos)) { e.preventDefault(); dragTarget = { cat, pos } }
                                         }}
-                                        on:dragleave={() => dragTarget = null}
-                                        on:drop={e => {
+                                        ondragleave={() => dragTarget = null}
+                                        ondrop={e => {
                                             e.preventDefault()
                                             dragTarget = null
                                             if (isHinted(cat, pos)) return
@@ -245,8 +263,9 @@
                                         {#if !isHinted(cat, pos) && !isFilled(cat, pos)}
                                             <button
                                                 class="hint-btn"
-                                                on:click={() => handleHint(cat, pos)}
-                                                title="Reveal this cell"
+                                                onclick={() => handleHint(cat, pos)}
+                                                disabled={cluesRemaining === 0}
+                                                title={cluesRemaining === 0 ? 'No clues left' : 'Reveal this cell'}
                                             >?</button>
                                         {/if}
                                     </td>
@@ -258,10 +277,10 @@
             </div>
 
             <div class="actions">
-                <button class="btn-primary" on:click={handleValidate}>
+                <button class="btn-primary" onclick={handleValidate}>
                     {checking ? 'Checking…' : 'Check Solution'}
                 </button>
-                <button class="btn-ghost" on:click={() => loadPuzzle(data.grid, data.difficulty)}>
+                <button class="btn-ghost" onclick={() => loadPuzzle(data.grid, data.difficulty)}>
                     New Puzzle
                 </button>
             </div>
@@ -291,7 +310,7 @@
                                         draggable="true"
                                         role="listitem"
                                         tabindex="-1"
-                                        on:dragstart={e => {
+                                        ondragstart={e => {
                                             if (isUsed) { e.preventDefault(); return }
                                             if (!e.dataTransfer) return
                                             e.dataTransfer.setData('text/plain', JSON.stringify({ cat, val }))
@@ -309,11 +328,6 @@
 {/if}
 
 <style>
-    .drag-hint {
-        font-size: 0.7rem;
-        margin-top: -0.75rem;
-    }
-
     .values-section {
         display: flex;
         flex-direction: column;
@@ -418,6 +432,19 @@
     }
 
     .timer-done { color: var(--gold); }
+
+    .clue-counter {
+        margin-top: 0.15rem;
+        font-family: var(--font-mono);
+        font-size: 0.65rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--gold);
+    }
+
+    .clue-counter.no-clues {
+        color: var(--error-text);
+    }
 
     .back-btn {
         width: 32px;
@@ -567,6 +594,12 @@
     }
 
     .hint-btn:hover { color: var(--gold); }
+
+    .hint-btn:disabled {
+        color: var(--error-text);
+        opacity: 0.45;
+        cursor: not-allowed;
+    }
 
     /* ── Actions ── */
     .actions {
