@@ -57,6 +57,16 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:5173", # Since svelte uses vite, it defaults to this format
     "http://localhost:5173", # Equivalent url
 ]
+CORS_ALLOW_CREDENTIALS = True
+
+CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
+
+SESSION_COOKIE_SAMESITE = config('SESSION_COOKIE_SAMESITE', default='Lax')
+SESSION_COOKIE_SECURE = config('SESSION_COOKIE_SECURE', default=False, cast=bool)
+FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:5173')
+BACKEND_URL = config('BACKEND_URL', default='')
+GOOGLE_OAUTH_CLIENT_ID = config('GOOGLE_OAUTH_CLIENT_ID', default='')
+GOOGLE_OAUTH_CLIENT_SECRET = config('GOOGLE_OAUTH_CLIENT_SECRET', default='')
 
 ALLOWED_HOSTS = [
     'logic-grid-puzzle.onrender.com',

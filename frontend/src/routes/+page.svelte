@@ -1,201 +1,218 @@
 <script lang="ts">
     import { goto } from '$app/navigation'
 
-    const GRIDS = ['3x4', '3x5', '4x4', '4x5', '4x6', '4x7']
-    const DIFFICULTIES = ['easy', 'moderate', 'challenging']
+    let { data } = $props()
 
-    const GRID_LABELS: Record<string, string> = {
-        '3x4': '3 categories · 4 houses',
-        '3x5': '3 categories · 5 houses',
-        '4x4': '4 categories · 4 houses',
-        '4x5': '4 categories · 5 houses',
-        '4x6': '4 categories · 6 houses',
-        '4x7': '4 categories · 7 houses',
-    }
-
-    const DIFF_LABELS: Record<string, string> = {
-        easy:        'More clues, gentler logic chains.',
-        moderate:    'Balanced challenge for most solvers.',
-        challenging: 'Minimal clues. No hand-holding.',
-    }
-
-    let selectedGrid = '4x5'
-    let selectedDifficulty = 'moderate'
-
-    function startPuzzle() {
-        goto(`/puzzle?grid=${selectedGrid}&difficulty=${selectedDifficulty}`)
-    }
+    const coreStats = $derived([
+        { label: 'Puzzles solved', value: data.stats.puzzlesSolved },
+        { label: 'Puzzles attempted', value: data.stats.puzzlesAttempted },
+        { label: 'Registered users', value: data.stats.registeredUsers },
+        { label: 'Anonymous players', value: data.stats.anonymousPlayers },
+    ])
 </script>
 
 <div class="bg-grid"></div>
 
-<main class="landing">
-    <header class="landing-header">
+<main class="home">
+    <section class="hero">
         <div class="logo-mark">◈</div>
         <h1>Logic Grid</h1>
-        <p class="label-dim tagline">Deduce. Place. Solve.</p>
-    </header>
-
-    <div class="card landing-card">
-        <section class="option-section">
-            <div class="section-header">
-                <span class="label-sm">01</span>
-                <h2>Grid Size</h2>
-            </div>
-            <div class="grid-options">
-                {#each GRIDS as grid}
-                    <button
-                        class="grid-btn"
-                        class:active={selectedGrid === grid}
-                        on:click={() => selectedGrid = grid}
-                    >
-                        <span class="grid-code">{grid}</span>
-                        <span class="grid-sub">{GRID_LABELS[grid]}</span>
-                    </button>
-                {/each}
-            </div>
-        </section>
-
-        <div class="divider"></div>
-
-        <section class="option-section">
-            <div class="section-header">
-                <span class="label-sm">02</span>
-                <h2>Difficulty</h2>
-            </div>
-            <div class="diff-options">
-                {#each DIFFICULTIES as diff}
-                    <button
-                        class="diff-btn"
-                        class:active={selectedDifficulty === diff}
-                        on:click={() => selectedDifficulty = diff}
-                    >
-                        <span class="diff-name">{diff}</span>
-                        <span class="diff-desc">{DIFF_LABELS[diff]}</span>
-                    </button>
-                {/each}
-            </div>
-        </section>
-
-        <button class="btn-primary start-btn" on:click={startPuzzle}>
-            <span>Begin Puzzle</span>
-            <span class="arrow">→</span>
+        <p class="tagline">Deduce. Place. Solve.</p>
+        <button class="btn-primary start-btn" onclick={() => goto('/puzzles')}>
+            <span>Choose Puzzle</span>
+            <span>→</span>
         </button>
-    </div>
+    </section>
 
-    <footer class="landing-footer">
-        <span class="label-dim">{selectedGrid} · {selectedDifficulty}</span>
-    </footer>
+    <section class="stats-panel">
+        <div class="stat-grid">
+            {#each coreStats as stat}
+                <div class="stat-card">
+                    <span class="stat-label">{stat.label}</span>
+                    <span class="stat-value">{stat.value}</span>
+                </div>
+            {/each}
+        </div>
+
+        <div class="detail-grid">
+            <div class="detail-card">
+                <span class="stat-label">Most popular grid</span>
+                <span class="detail-value">{data.stats.mostPopularGrid.grid}</span>
+                <span class="detail-sub">{data.stats.mostPopularGrid.plays} solves</span>
+            </div>
+
+            <div class="detail-card">
+                <span class="stat-label">Fastest solve</span>
+                <span class="detail-value">{data.stats.fastestSolve.time}</span>
+                <span class="detail-sub">
+                    {data.stats.fastestSolve.username} · {data.stats.fastestSolve.grid} · {data.stats.fastestSolve.difficulty}
+                </span>
+            </div>
+
+            <div class="detail-card avg-card">
+                <span class="stat-label">Average solve time</span>
+                <div class="avg-list">
+                    {#each data.stats.averageSolveTimeByDifficulty as item}
+                        <div class="avg-row">
+                            <span>{item.difficulty}</span>
+                            <strong>{item.time}</strong>
+                        </div>
+                    {:else}
+                        <div class="avg-row">
+                            <span>No solves yet</span>
+                            <strong>0:00</strong>
+                        </div>
+                    {/each}
+                </div>
+            </div>
+        </div>
+    </section>
 </main>
 
 <style>
-    .landing {
+    .home {
         position: relative;
         z-index: 1;
-        min-height: 100vh;
-        display: flex;
-        flex-direction: column;
+        min-height: calc(100vh - 52px);
+        display: grid;
+        grid-template-columns: minmax(280px, 0.85fr) minmax(360px, 1.15fr);
         align-items: center;
-        justify-content: center;
-        gap: 2rem;
-        padding: 2rem;
+        gap: 3rem;
+        max-width: 1120px;
+        margin: 0 auto;
+        padding: 4rem 2rem;
     }
 
-    .landing-header { text-align: center; }
+    .hero {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
 
     .logo-mark {
-        font-size: 2.5rem;
+        font-size: 2.8rem;
         color: var(--gold);
-        display: block;
-        margin-bottom: 0.5rem;
         animation: pulse 3s ease-in-out infinite;
     }
 
     h1 {
-        font-size: 3.5rem;
+        font-size: 4rem;
         font-weight: 900;
-        letter-spacing: -0.02em;
         color: var(--text);
         line-height: 1;
     }
 
-    .tagline { margin-top: 0.5rem; }
-
-    .landing-card {
-        width: 100%;
-        max-width: 520px;
-        display: flex;
-        flex-direction: column;
-        gap: 1.5rem;
+    .tagline {
+        font-size: 0.78rem;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--text-muted);
     }
 
-    .option-section {
+    .start-btn {
+        min-width: 220px;
+        margin-top: 0.75rem;
+    }
+
+    .stats-panel {
         display: flex;
         flex-direction: column;
         gap: 1rem;
     }
 
-    .section-header {
-        display: flex;
-        align-items: baseline;
-        gap: 0.75rem;
-    }
-
-    h2 { font-size: 1rem; color: var(--text-mid); }
-
-    .grid-options {
+    .stat-grid {
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 0.5rem;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1rem;
     }
 
-    .grid-btn {
+    .stat-card,
+    .detail-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        padding: 1.15rem 1.25rem;
         display: flex;
         flex-direction: column;
-        align-items: center;
-        gap: 0.2rem;
-        padding: 0.75rem 0.5rem;
-        background: var(--surface-alt);
-        border: 1px solid var(--border);
-        border-radius: var(--radius-md);
-        cursor: pointer;
-        color: var(--text-dim);
-        transition: border-color 0.15s, color 0.15s, background 0.15s;
+        gap: 0.4rem;
     }
 
-    .grid-btn:hover { border-color: var(--text-muted); color: var(--text-mid); }
-    .grid-btn.active { background: #1e1a14; border-color: var(--gold); color: var(--text); }
+    .stat-label {
+        font-size: 0.6rem;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+    }
 
-    .grid-code { font-family: var(--font-mono); font-size: 1rem; font-weight: 500; }
-    .grid-sub { font-size: 0.6rem; letter-spacing: 0.05em; opacity: 0.6; text-align: center; }
+    .stat-value {
+        font-family: var(--font-display);
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--gold);
+        line-height: 1;
+    }
 
-    .diff-options { display: flex; flex-direction: column; gap: 0.5rem; }
-
-    .diff-btn {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 0.875rem 1rem;
-        background: var(--surface-alt);
-        border: 1px solid var(--border);
-        border-radius: var(--radius-md);
-        cursor: pointer;
-        color: var(--text-dim);
+    .detail-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 1rem;
-        transition: border-color 0.15s, color 0.15s, background 0.15s;
-        text-align: left;
     }
 
-    .diff-btn:hover { border-color: var(--text-muted); color: var(--text-mid); }
-    .diff-btn.active { background: #1e1a14; border-color: var(--gold); color: var(--text); }
+    .avg-card {
+        grid-column: 1 / -1;
+    }
 
-    .diff-name { font-size: 0.85rem; font-weight: 500; text-transform: capitalize; min-width: 90px; }
-    .diff-desc { font-size: 0.7rem; opacity: 0.55; text-align: right; }
+    .detail-value {
+        font-family: var(--font-display);
+        font-size: 1.6rem;
+        color: var(--text);
+        line-height: 1.1;
+    }
 
-    .start-btn { width: 100%; }
+    .detail-sub {
+        font-size: 0.72rem;
+        color: var(--text-dim);
+    }
 
-    .arrow { font-size: 1.1rem; transition: transform 0.2s ease; }
-    .start-btn:hover .arrow { transform: translateX(4px); }
+    .avg-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.45rem;
+    }
 
-    .landing-footer { font-size: 0.65rem; }
+    .avg-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        color: var(--text-dim);
+        font-size: 0.78rem;
+    }
+
+    .avg-row strong {
+        color: var(--gold-light);
+        font-weight: 500;
+    }
+
+    @media (max-width: 820px) {
+        .home {
+            grid-template-columns: 1fr;
+            align-items: start;
+            gap: 2rem;
+            padding: 3rem 1.25rem;
+        }
+
+        h1 { font-size: 3rem; }
+    }
+
+    @media (max-width: 520px) {
+        .stat-grid,
+        .detail-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .avg-card {
+            grid-column: auto;
+        }
+    }
 </style>

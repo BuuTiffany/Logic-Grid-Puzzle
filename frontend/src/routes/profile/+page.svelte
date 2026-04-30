@@ -1,5 +1,4 @@
 <script lang="ts">
-    import GuestNotice from '$lib/GuestNotice.svelte';
     let { data } = $props();
 
     const PAGE_SIZE = 10;
@@ -40,7 +39,6 @@
     }
 </script>
 
-<GuestNotice message="Sign in to save your scores and progress." />
 <div class="bg-grid"></div>
 <div class="profile-container">
 

@@ -12,7 +12,7 @@ from typing import Optional
 from django.conf import settings
 from supabase import create_client, Client
 
-from api.puzzles.generator import create_puzzle
+from api.puzzles.generator import create_puzzle, clue_allowance
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +39,8 @@ def _to_public(row: dict) -> dict:
     """Strip solution from a Supabase row before returning to a view."""
     public = dict(row)
     public.pop("solution", None)
+    rows, cols = map(int, public["grid"].split("x"))
+    public["clue_limit"] = clue_allowance(public["difficulty"], cols, rows)
     return public
 
 
@@ -74,6 +76,7 @@ def _puzzle_to_public_dict(puzzle, stored_id: str) -> dict:
         "id":         stored_id,
         "grid":       f"{puzzle.rows}x{puzzle.cols}",
         "difficulty": puzzle.difficulty,
+        "clue_limit": clue_allowance(puzzle.difficulty, puzzle.cols, puzzle.rows),
         "categories": puzzle.categories,
         "values":     {cat: list(vals) for cat, vals in puzzle.solution.items()},
         "clues": [
@@ -161,7 +164,9 @@ def get_or_generate(grid: str = "4x5", difficulty: str = "moderate") -> dict:
         return _to_public(row)
 
     logger.warning("Puzzle pool empty for grid=%s difficulty=%s — generating live", grid, difficulty)
-    return generate_and_store(grid=grid, difficulty=difficulty)
+    puzzle = generate_and_store(grid=grid, difficulty=difficulty)
+    _client().table("puzzles").update({"used": True}).eq("id", puzzle["id"]).execute()
+    return puzzle
 
 
 def validate_solution(puzzle_id: str, user_solution: dict) -> bool:
@@ -174,14 +179,17 @@ def validate_solution(puzzle_id: str, user_solution: dict) -> bool:
     return record["solution"] == user_solution
 
 
-def submit_solve(puzzle_id: str, username: str, grid: str, difficulty: str, solve_time: int) -> None:
-    _client().table("solves").insert({
+def submit_solve(puzzle_id: str, username: str, grid: str, difficulty: str, solve_time: int, user_id: int | None = None) -> None:
+    record = {
         "puzzle_id":  puzzle_id,
         "username":   username,
         "grid":       grid,
         "difficulty": difficulty,
         "solve_time": solve_time,
-    }).execute()
+    }
+    if user_id is not None:
+        record["user_id"] = user_id
+    _client().table("solves").insert(record).execute()
 
 
 def _fmt_time(seconds: int) -> str:
@@ -192,13 +200,14 @@ def get_leaderboard() -> list[dict]:
     res = (
         _client()
         .table("solves")
-        .select("username, grid, difficulty, solve_time, completed_at")
+        .select("username, user_id, grid, difficulty, solve_time, completed_at")
         .order("solve_time")
         .execute()
     )
     return [
         {
             "name":       row["username"],
+            "userId":     row.get("user_id"),
             "size":       row["grid"],
             "difficulty": row["difficulty"].capitalize(),
             "time":       _fmt_time(row["solve_time"]),
@@ -208,12 +217,85 @@ def get_leaderboard() -> list[dict]:
     ]
 
 
-def get_profile(username: str) -> list[dict]:
+def get_global_stats(registered_users: int) -> dict:
+    solves_res = (
+        _client()
+        .table("solves")
+        .select("username, user_id, grid, difficulty, solve_time")
+        .execute()
+    )
+    puzzles_res = (
+        _client()
+        .table("puzzles")
+        .select("id")
+        .eq("used", True)
+        .execute()
+    )
+
+    solves = solves_res.data or []
+    attempted = len(puzzles_res.data or [])
+    solved = len(solves)
+    anonymous_players = len({
+        row["username"].strip().lower()
+        for row in solves
+        if row.get("username") and row.get("user_id") is None
+    })
+
+    grid_counts: dict[str, int] = {}
+    difficulty_totals: dict[str, list[int]] = {}
+    fastest = None
+
+    for row in solves:
+        grid = row["grid"]
+        difficulty = row["difficulty"]
+        solve_time = row["solve_time"]
+        grid_counts[grid] = grid_counts.get(grid, 0) + 1
+        difficulty_totals.setdefault(difficulty, []).append(solve_time)
+        if fastest is None or solve_time < fastest["seconds"]:
+            fastest = {
+                "seconds": solve_time,
+                "time": _fmt_time(solve_time),
+                "grid": grid,
+                "difficulty": difficulty.capitalize(),
+                "username": row["username"],
+            }
+
+    most_popular_grid = max(grid_counts.items(), key=lambda item: item[1], default=(None, 0))
+    averages = [
+        {
+            "difficulty": difficulty.capitalize(),
+            "time": _fmt_time(round(sum(times) / len(times))),
+            "seconds": round(sum(times) / len(times)),
+        }
+        for difficulty, times in sorted(difficulty_totals.items())
+    ]
+
+    return {
+        "puzzlesSolved": solved,
+        "puzzlesAttempted": attempted,
+        "registeredUsers": registered_users,
+        "anonymousPlayers": anonymous_players,
+        "mostPopularGrid": {
+            "grid": most_popular_grid[0] or "None",
+            "plays": most_popular_grid[1],
+        },
+        "averageSolveTimeByDifficulty": averages,
+        "fastestSolve": fastest or {
+            "seconds": 0,
+            "time": "0:00",
+            "grid": "None",
+            "difficulty": "None",
+            "username": "None",
+        },
+    }
+
+
+def get_profile(user_id: int) -> list[dict]:
     res = (
         _client()
         .table("solves")
         .select("grid, difficulty, solve_time, completed_at")
-        .eq("username", username)
+        .eq("user_id", user_id)
         .order("completed_at", desc=True)
         .execute()
     )

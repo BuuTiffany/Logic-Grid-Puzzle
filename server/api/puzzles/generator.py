@@ -338,6 +338,15 @@ def _extras_for_difficulty(difficulty: str, cols: int, rows: int) -> int:
     return 0
 
 
+def clue_allowance(difficulty: str, cols: int, rows: int) -> int:
+    base = cols * rows
+    if difficulty == "easy":
+        return max(3, base // 4)
+    if difficulty == "moderate":
+        return max(1, base // 8)
+    return 0
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
